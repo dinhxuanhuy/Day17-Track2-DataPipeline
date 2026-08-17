@@ -1,7 +1,7 @@
 SHELL   := /bin/bash
 VENV    := .venv
 PY      := $(VENV)/bin/python
-PIP     := $(VENV)/bin/pip
+PIP     := $(PY) -m pip
 DBT     := $(VENV)/bin/dbt
 
 export LAB17_DB := $(CURDIR)/warehouse.duckdb
