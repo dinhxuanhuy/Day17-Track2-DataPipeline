@@ -130,8 +130,8 @@ Hai bài trong [EXTRA.md](EXTRA.md), cần chạy `make seed-extra` trước:
 | `gold_feature_daily` — số hàng | 9.100 | 9.100 | ✓ |
 | `gold_feature_daily` — ổn định 3 lượt | ✓ | ✓ | ✓ |
 | `gold_doc_chunks` — số hàng | 31.200 | 31.200 | ✓ |
-| `quarantine_tickets` — số hàng | | 312 | |
-| `silver_tickets` — số ticket | | 12.480 | |
-| `dbt test` | | pass, > 9 test | |
+| `quarantine_tickets` — số hàng | 312 | 312 | ✓ |
+| `silver_tickets` — số ticket | 12.480 | 12.480 | ✓ |
+| `dbt test` | pass, 11/11 | pass, > 9 test | ✓ |
 | P99 độ trễ đo được | 2.73 ngày | (ghi số) | ✓ |
-| **Tổng verify** | | 4/4 tiêu chí | |
+| **Tổng verify** | 4/4 tiêu chí | 4/4 tiêu chí | ✓ |

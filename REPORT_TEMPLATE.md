@@ -13,29 +13,29 @@
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   LAB 17 · make verify
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  run 1/3 … 15.5s
-  run 2/3 … 15.3s
-  run 3/3 … 15.3s
+  run 1/3 … 13.7s
+  run 2/3 … 14.9s
+  run 3/3 … 14.8s
 
   BẢNG                  ỔN ĐỊNH          SỐ HÀNG     KỲ VỌNG   GHI CHÚ
   ──────────────────────────────────────────────────────────────────────────
   gold_training_set     ✓ ok              12,480      12,480   ✓
   gold_feature_daily    ✓ ok               9,100       9,100   ✓
   gold_doc_chunks       ✓ ok              31,200      31,200   ✓
-  quarantine_tickets    ✓ ok                   0         312   ✗ thiếu 312 hàng
+  quarantine_tickets    ✓ ok                 312         312   ✓
 
   CHECKSUM từng lượt
   ──────────────────────────────────────────────────────────────────────────
-  gold_training_set     8622572a97    8622572a97    8622572a97   ✓
+  gold_training_set     8dd7c98653    8dd7c98653    8dd7c98653   ✓
   gold_feature_daily    3db448685c    3db448685c    3db448685c   ✓
   gold_doc_chunks       92d8e50131    92d8e50131    92d8e50131   ✓
-  quarantine_tickets    empty         empty         empty        ✓
+  quarantine_tickets    ebb89036fb    ebb89036fb    ebb89036fb   ✓
 
   KIỂM TRA KHÁC
   ──────────────────────────────────────────────────────────────────────────
-  dbt test                                    ✓ 9/9 pass
-  silver_tickets.priority ∈ 1..4, không NULL  ✗ 6,606 hàng sai
-  quarantine_tickets đúng số bản ghi lỗi      ✗ 0 / 312
+  dbt test                                    ✓ 11/11 pass
+  silver_tickets.priority ∈ 1..4, không NULL  ✓ sạch
+  quarantine_tickets đúng số bản ghi lỗi      ✓ 312 / 312
   gold_training_set: 1 hàng / 1 ticket        ✓ không lặp
   dashboard rows scanned                      ✗ 5,000,000 → 5,000,000 (1.0×, cần ≥ 10×)
     số file parquet                           ✗ 5,000 → 5,000
@@ -46,15 +46,15 @@
   ──────────────────────────────────────────────────────────────────────────
   ✓  1 · gold_training_set idempotent & đúng số hàng
   ✓  2 · gold_feature_daily đủ hàng (dữ liệu về muộn)
-  ✗  3 · contract + quarantine + dbt test
+  ✓  3 · contract + quarantine + dbt test
   ✓  4 · gold_doc_chunks vẫn ổn định (đối chứng)
   ──────────────────────────────────────────────────────────────────────────
-  3/4 tiêu chí đạt
+  4/4 tiêu chí đạt
 ```
 
 </details>
 
-Tổng kết: **3 / 4 tiêu chí đạt**
+Tổng kết: **4 / 4 tiêu chí đạt**
 
 ---
 
@@ -65,7 +65,7 @@ Tổng kết: **3 / 4 tiêu chí đạt**
 | **Triệu chứng** | Khi chạy lại pipeline (hoặc Clear Task trên Airflow), số hàng trong `gold_training_set` bị nhân lên sau mỗi lần chạy (lên tới 38,750 hàng sau 3 lượt). Bảng đích bị lặp ticket (1,310 ticket có nhiều hơn 1 hàng). |
 | **Nguyên nhân** | 1. Model incremental trong dbt thiếu `unique_key` và `incremental_strategy`, khiến dbt dùng chiến lược mặc định là `append` (`INSERT INTO`).<br>2. Nguồn CDC có bản ghi `op='u'` (1,310 bản ghi sửa đổi), một ticket tạo ngày D1 và sửa ngày D2 lọt qua điều kiện lọc `_ingested_at` ở cả 2 ngày nên bị chèn lặp.<br>3. DAG Airflow để `catchup=True` và thiếu giới hạn `max_active_runs`. |
 | **Cách khắc phục** | - `dbt/models/gold/gold_training_set.sql`: Thêm `unique_key = 'ticket_id'` và `incremental_strategy = 'delete+insert'` vào `config()`.<br>- `dags/ai_training_pipeline.py`: Đổi thành `catchup=False` và `max_active_runs=1`. |
-| **Bằng chứng** | trước: 38,750 hàng · sau: 12,480 hàng · checksum 3 lượt: `8622572a97` (ổn định) · 0 ticket bị lặp |
+| **Bằng chứng** | trước: 38,750 hàng · sau: 12,480 hàng · checksum 3 lượt: `8dd7c98653` (ổn định) · 0 ticket bị lặp |
 
 ---
 
@@ -91,16 +91,20 @@ Vì sao chọn P99 làm căn cứ thay vì `max`? Chi phí của mỗi lựa ch�
 
 | | |
 |---|---|
-| **Triệu chứng** | |
-| **Nguyên nhân** | |
-| **Ba nhóm giá trị `priority` và cách xử lý từng nhóm** | |
-| **Cách khắc phục** | |
-| **Bằng chứng** | `quarantine_tickets` = … hàng · `dbt test` … pass |
+| **Triệu chứng** | Từ ngày 08-10, team backend đổi kiểu gửi cột `priority` từ số (`'1'`..`'4'`) sang nhãn chuỗi (`'urgent'`, `'high'`, `'medium'`, `'low'`). Cột `priority` trong `silver_tickets` dùng `try_cast(... as integer)` dẫn đến 6,606 dòng bị `NULL` và 312 bản ghi mang giá trị sai lệch (`0`, `5`, `-1`, `P1`, `P2`, `unknown`, `''`, `NULL`) lọt qua contract. Model phân loại AI bị giảm mạnh độ chính xác. |
+| **Nguyên nhân** | 1. **Schema Evolution không được xử lý:** Backend thay đổi cách biểu diễn dữ liệu nhưng pipeline chỉ dùng `try_cast`, vừa làm mất thông tin của nhãn chuỗi hợp lệ (biến thành NULL), vừa để lọt các số ngoài khoảng 1..4 (vì chúng cast được thành số).<br>2. **Thiếu Data Contract & Quarantine:** Chưa bật ràng buộc schema (`contract.enforced: true`) và thiếu vùng cách ly phân loại các bản ghi lỗi.<br>3. **Sai thứ tự Deduplication:** Nếu xếp hạng (`row_number()`) trước rồi mới lọc, những ticket có bản ghi mới nhất bị lỗi sẽ bị loại bỏ hoàn toàn cả ticket khỏi Silver (tụt từ 12,480 xuống 12,168 ticket). |
+| **Ba nhóm giá trị `priority` và cách xử lý từng nhóm** | 1. **Nhóm 1 (Số hợp lệ - 6,846 bản ghi):** `'1'`, `'2'`, `'3'`, `'4'` ➔ Đúng contract ban đầu, giữ nguyên.<br>2. **Nhóm 2 (Nhãn chuỗi / Schema evolution - 7,142 bản ghi):** `'urgent'`, `'high'`, `'medium'`, `'low'` ➔ Ánh xạ về số nguyên 1..4 (`urgent→1`, `high→2`, `medium→3`, `low→4`).<br>3. **Nhóm 3 (Dữ liệu hỏng thật - 312 bản ghi):** `'0'`, `'5'`, `'-1'`, `'P1'`, `'P2'`, `'unknown'`, `''`, `NULL` ➔ Trả về `NULL` để chuyển vào `quarantine_tickets`. |
+| **Cách khắc phục** | - `dbt/macros/normalize_priority.sql`: Dùng `CASE WHEN` phân loại 3 nhóm; ánh xạ nhóm 2 về 1..4; nhóm 3 trả về `NULL`; bổ sung `priority_reject_reason`.<br>- `dbt/models/silver/silver_tickets.sql`: Lọc bỏ bản ghi `priority_clean is null` **trước** khi đánh số `row_number()`, bảo toàn đủ 12,480 ticket.<br>- `dbt/models/silver/quarantine_tickets.sql`: Đổi điều kiện thành `where {{ normalize_priority('priority_raw') }} is null`.<br>- `dbt/models/silver/schema.yml`: Bật `contract: enforced: true` và thêm tests `not_null`, `accepted_values: [1, 2, 3, 4]`. |
+| **Bằng chứng** | `quarantine_tickets` = 312 hàng · `silver_tickets` đủ 12,480 ticket · `silver_tickets.priority ∈ 1..4, không NULL` = sạch · `dbt test` = 11/11 pass |
 
 Câu hỏi thiết kế: nên chặn ở tầng Bronze hay Silver? Vì sao **không** để
 pipeline dừng khi gặp bản ghi lỗi?
 
-> …
+> 1. **Nên chặn ở tầng Silver, KHÔNG chặn ở tầng Bronze:**
+>    - Tầng Bronze tuân theo nguyên tắc *Immutable Raw Ingestion* (bảo tồn nguyên vẹn dữ liệu thô từ nguồn). Nếu từ chối bản ghi ngay tại Bronze, dữ liệu bị mất vĩnh viễn (data loss). Khi đó, kỹ sư mất dấu vết lịch sử (audit trail), không thể điều tra nguyên nhân gốc rễ, và không thể reprocess/backfill khi backend sửa lỗi hoặc cung cấp rule ánh xạ mới.
+> 2. **Vì sao KHÔNG để pipeline dừng khi gặp bản ghi lỗi:**
+>    - *Kiểm soát phạm vi ảnh hưởng (Blast Radius):* Trong chu kỳ vận hành, chỉ có 312 bản ghi CDC bị lỗi trên tổng số hơn 14,300 bản ghi CDC, hơn 130,000 sự kiện và 31,200 chunk văn bản. Nếu dừng cả pipeline, 99.9% dữ liệu hoàn toàn hợp lệ của toàn bộ khách hàng khác sẽ bị đình trệ, làm gián đoạn toàn bộ hệ thống RAG Index và AI Agent phục vụ kinh doanh.
+>    - Áp dụng mô hình **Quarantine (Cách ly)** giúp cô lập các bản ghi lỗi vào hàng đợi riêng để người trực xử lý mà vẫn đảm bảo tính sẵn sàng (high availability) và thông suốt cho toàn bộ pipeline.
 
 ---
 
@@ -108,7 +112,7 @@ pipeline dừng khi gặp bản ghi lỗi?
 
 | | |
 |---|---|
-| **Bài đã làm** | A / B / không làm |
+| **Bài đã làm** | không làm |
 | **Nguyên nhân** | |
 | **Cách khắc phục** | |
 | **Bằng chứng** | |
@@ -119,6 +123,6 @@ pipeline dừng khi gặp bản ghi lỗi?
 
 | Nhiệm vụ | Khi tiếp nhận một hệ thống chưa quen, tôi sẽ kiểm tra điều này trước tiên |
 |---|---|
-| 1 | |
-| 2 | |
-| 3 | |
+| 1 | Kiểm tra tính Idempotent của các model Incremental: `unique_key`, `incremental_strategy` (`delete+insert` / `merge`), và cấu hình DAG (`catchup=False`, `max_active_runs=1`) để tránh nhân bản dữ liệu khi retry/clear task. |
+| 2 | Kiểm tra phân bố độ trễ nạp dữ liệu (`_ingested_at` vs `event_time`) và cấu hình Lookback Window phù hợp (dựa trên P99) kèm composite `unique_key` để không bỏ sót late-arriving data. |
+| 3 | Kiểm tra Data Contract (`contract: enforced: true`), các bộ test ràng buộc miền giá trị (`not_null`, `accepted_values`), và cơ chế Quarantine phân luồng bản ghi lỗi độc lập với pipeline chính. |
